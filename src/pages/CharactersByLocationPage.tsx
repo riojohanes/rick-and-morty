@@ -1,24 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
 import { CharacterCard } from '../components/CharacterCard'
 import { EmptyState } from '../components/EmptyState'
-import { useLocationAssignments } from '../providers/LocationAssignmentsProvider'
+import { useCharactersByLocationViewModel } from '../viewmodels/useCharactersByLocationViewModel'
 
 export const CharactersByLocationPage = () => {
-  const { locations } = useLocationAssignments()
-  const [selectedLocation, setSelectedLocation] = useState('')
+  const {
+    hasLocations,
+    locationEntries,
+    selectedLocation,
+    activeResidents,
+    showSelectionPrompt,
+    showEmptyResidentsState,
+    handleSelectLocation,
+  } = useCharactersByLocationViewModel()
 
-  const locationEntries = useMemo(
-    () => Object.entries(locations).sort(([a], [b]) => a.localeCompare(b)),
-    [locations],
-  )
-
-  useEffect(() => {
-    if (!selectedLocation && locationEntries.length > 0) {
-      setSelectedLocation(locationEntries[0][0])
-    }
-  }, [locationEntries, selectedLocation])
-
-  if (locationEntries.length === 0) {
+  if (!hasLocations) {
     return (
       <section className="page">
         <EmptyState
@@ -28,11 +23,6 @@ export const CharactersByLocationPage = () => {
       </section>
     )
   }
-
-  const activeResidents = selectedLocation
-    ? locations[selectedLocation] ?? []
-    : []
-
   return (
     <section className="page">
       <header className="page__header">
@@ -57,7 +47,7 @@ export const CharactersByLocationPage = () => {
                   ? 'location-chip location-chip--active'
                   : 'location-chip'
               }
-              onClick={() => setSelectedLocation(locationName)}
+              onClick={() => handleSelectLocation(locationName)}
             >
               <strong>{locationName}</strong>
               <span>{residents.length} karakter</span>
@@ -66,11 +56,11 @@ export const CharactersByLocationPage = () => {
         </aside>
 
         <div className="locations-content">
-          {!selectedLocation && (
+          {showSelectionPrompt && (
             <EmptyState title="Pilih lokasi" description="Mulai dengan memilih lokasi di sisi kiri." />
           )}
 
-          {selectedLocation && activeResidents.length === 0 && (
+          {showEmptyResidentsState && (
             <EmptyState
               title="Belum ada karakter"
               description="Assign karakter baru melalui halaman detail."

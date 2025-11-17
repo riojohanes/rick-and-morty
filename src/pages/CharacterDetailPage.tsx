@@ -1,85 +1,27 @@
-import type { FormEvent } from 'react'
-import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useQuery } from '@apollo/client/react'
-import { GET_CHARACTER } from '../api/queries'
 import { StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
-import type { Character } from '../types/character'
-import { useLocationAssignments } from '../providers/LocationAssignmentsProvider'
-
-type CharacterDetail = Character & {
-  type?: string
-  origin: Character['origin'] & { dimension?: string }
-  location: Character['location'] & { type?: string; dimension?: string }
-  episode: { id: string; name: string; episode: string }[]
-}
-
-type CharacterEpisode = CharacterDetail['episode'][number]
-
-interface CharacterResponse {
-  character: CharacterDetail
-}
+import { useCharacterDetailViewModel } from '../viewmodels/useCharacterDetailViewModel'
 
 export const CharacterDetailPage = () => {
   const { id } = useParams<{ id: string }>()
-  const { locations, characterLocations, assignCharacter, unassignCharacter } =
-    useLocationAssignments()
-
-  const [selectedLocation, setSelectedLocation] = useState('')
-  const [newLocationName, setNewLocationName] = useState('')
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
-
-  const { data, loading, error } = useQuery<CharacterResponse>(GET_CHARACTER, {
-    variables: { id },
-    skip: !id,
-  })
-
-  const character = data?.character
-  const currentAssignment = id ? characterLocations[id] : undefined
-  const availableLocations = Object.keys(locations)
-
-  const characterSummary = useMemo(() => {
-    if (!character) return null
-    return {
-      id: character.id,
-      name: character.name,
-      status: character.status,
-      species: character.species,
-      image: character.image,
-    }
-  }, [character])
-
-  const handleAssignExisting = () => {
-    if (!characterSummary || !selectedLocation) {
-      setFeedbackMessage('Pilih lokasi yang tersedia terlebih dahulu.')
-      return
-    }
-    assignCharacter(characterSummary, selectedLocation)
-    setFeedbackMessage(`Berhasil assign ke ${selectedLocation}.`)
-  }
-
-  const handleCreateLocation = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!characterSummary) return
-
-    const result = assignCharacter(characterSummary, newLocationName, {
-      requireNewLocation: true,
-    })
-
-    if (!result.ok) {
-      setFeedbackMessage(result.error ?? 'Gagal membuat lokasi baru.')
-    } else {
-      setFeedbackMessage(`Lokasi ${newLocationName.trim()} berhasil dibuat.`)
-      setNewLocationName('')
-    }
-  }
-
-  const handleUnassign = () => {
-    if (!id) return
-    unassignCharacter(id)
-    setFeedbackMessage('Karakter dilepas dari lokasi.')
-  }
+  const {
+    loading,
+    error,
+    character,
+    highlightedEpisodes,
+    availableLocations,
+    currentAssignment,
+    selectedLocation,
+    newLocationName,
+    feedbackMessage,
+    canAssignExisting,
+    handleAssignExisting,
+    handleCreateLocation,
+    handleNewLocationNameChange,
+    handleSelectLocation,
+    handleUnassign,
+  } = useCharacterDetailViewModel(id)
 
   if (loading) {
     return (
@@ -102,9 +44,6 @@ export const CharacterDetailPage = () => {
     )
   }
 
-  const highlightedEpisodes: CharacterEpisode[] =
-    character.episode.slice(0, 6)
-
   return (
     <section className="page">
       <header className="page__header">
@@ -120,11 +59,11 @@ export const CharacterDetailPage = () => {
             </div>
             <ul className="detail-hero__meta">
               <li>
-                <span>Origin</span>
+                <span>Origin : </span>
                 <strong>{character.origin?.name ?? 'Unknown'}</strong>
               </li>
               <li>
-                <span>Last location</span>
+                <span>Last location : </span>
                 <strong>{character.location?.name ?? 'Unknown'}</strong>
               </li>
             </ul>
@@ -159,7 +98,7 @@ export const CharacterDetailPage = () => {
               <span className="field__label">Gunakan lokasi yang ada</span>
               <select
                 value={selectedLocation}
-                onChange={(event) => setSelectedLocation(event.target.value)}
+                onChange={(event) => handleSelectLocation(event.target.value)}
               >
                 <option value="">Pilih lokasi</option>
                 {availableLocations.map((locationName) => (
@@ -169,7 +108,11 @@ export const CharacterDetailPage = () => {
                 ))}
               </select>
             </label>
-            <button type="button" onClick={handleAssignExisting} disabled={!selectedLocation}>
+            <button
+              type="button"
+              onClick={handleAssignExisting}
+              disabled={!canAssignExisting}
+            >
               Assign ke lokasi ini
             </button>
           </div>
@@ -181,7 +124,9 @@ export const CharacterDetailPage = () => {
                 type="text"
                 placeholder="Contoh: Citadel Block C"
                 value={newLocationName}
-                onChange={(event) => setNewLocationName(event.target.value)}
+                onChange={(event) =>
+                  handleNewLocationNameChange(event.target.value)
+                }
                 required
               />
             </label>
